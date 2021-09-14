@@ -1,0 +1,156 @@
+trigger:
+  - main
+
+pool: 'Anka macOS'
+
+parameters:
+  - name: anka_vm_name
+    displayName: "Anka VM Template Name or UUID"
+    type: string
+    default: '11.5.2'
+  - name: anka_vm_tag_name
+    displayName: "Anka VM Template Name or UUID"
+    type: string
+    default: 'vanilla+port-forward-22+brew-git'
+  - name: lane_name
+    displayName: "Fastlane Lane Name"
+    type: string
+    default: ''
+  - name: lane_parameters
+    displayName: "Fastlane Parameters"
+    type: string
+    default: ''
+  - name: publishFolder
+    displayName: "Artifact Publish Folder"
+    type: string
+    default: ''
+  - name: artifactFolderName
+    displayName: "Artifact Folder Name"
+    type: string
+    default: 'Artifacts'
+  - name: publishTest
+    displayName: "Publish Test Name"
+    type: string
+    default: ''
+  - name: publishCodeCoverageFolderName
+    displayName: "Publish Code Coverage Name"
+    type: string
+    default: ''
+  - name: rubyVersion
+    displayName: "Ruby Version"
+    type: string
+    default: 'ruby-2.7.0'
+  - name: match_pass_key
+    displayName: "Publish Code Coverage Name"
+    type: string
+    default: 'Password Here'
+  - name: git_token_key
+    displayName: "Git Token"
+    type: string
+    default: 'Token Here'
+
+steps:
+
+  - task: Bash@3
+    displayName: '🔒 Create Anka VM'
+    inputs:
+      targetType: 'inline'
+      script: |
+        # This script will get the latest anka template, we need to make sure only one template is pulled at a time on a machine.
+        
+        # First we'll create a lock-file, because pulling multiple VMs at the same time might cause issues.
+        # This is not really thread safe... but it's better then nothing
+        while [[ -f "/tmp/registry-pull-lock-${{ parameters.anka_vm_name }}" ]]; do
+          echo "Lock file found... Another job on this node is pulling a tag for ${{ parameters.anka_vm_name }} and pulling a second will potentially cause corruption. Sleeping for 20 seconds..."
+          sleep 20
+        done
+        
+        # Create lock file
+        touch "/tmp/registry-pull-lock-${{ parameters.anka_vm_name }}"
+        
+        # Pull latest version (if no tag specified)
+        anka registry pull ${{ parameters.anka_vm_name }} ${{ parameters.anka_vm_tag_name }}
+        
+        # Clone template for a VM
+        anka clone ${{ parameters.anka_vm_name }} ado-fastlane+$(Build.Repository.Name)_$(Build.SourceBranchName)_$(Build.SourceVersion)_$(Build.BuildNumber)_$(Agent.Name)
+
+  - task: Bash@3
+    displayName: '🔓 Unlock Anka VM'
+    condition: always()
+    inputs:
+      targetType: 'inline'
+      script: |
+        # Make sure to always delete the lock file
+        rm "/tmp/registry-pull-lock-${{ parameters.anka_vm_name }}"
+        
+  - task: Bash@3
+    displayName: '🛠 Prepare Anka VM working directory'
+    inputs:
+      targetType: 'inline'
+      script: |
+        # Start the VM
+        anka start ado-fastlane+$(Build.Repository.Name)_$(Build.SourceBranchName)_$(Build.SourceVersion)_$(Build.BuildNumber)_$(Agent.Name)
+
+        # Copy all files from ADO work folder to ~/work/ inside the VM
+        anka cp -fa ./ ado-fastlane+$(Build.Repository.Name)_$(Build.SourceBranchName)_$(Build.SourceVersion)_$(Build.BuildNumber)_$(Agent.Name):./work/ 
+        
+  - task: Bash@3
+    displayName: '🚀 Run fastlane in Anka VM'
+    inputs:
+      targetType: 'inline'
+      script: |
+        anka run --env --no-volume --wait-network --wait-time ado-fastlane+$(Build.Repository.Name)_$(Build.SourceBranchName)_$(Build.SourceVersion)_$(Build.BuildNumber)_$(Agent.Name) bash -c "cd work
+      
+        # Setting up all everything
+        # Set ENVs, configure Git with secrets etc.
+        # Make sure Ruby is correct version
+        
+        # Run fastlane
+        bundle install
+        bundle exec fastlane ${{ parameters.lane_name }} ${{ parameters.lane_parameters }}"
+        
+  - task: Bash@3
+    displayName: "📥 Copy results from Anka VM"
+    inputs:
+      targetType: 'inline'
+      script: |
+        # Copy results back to the host 
+        anka cp -fa ado-fastlane+$(Build.Repository.Name)_$(Build.SourceBranchName)_$(Build.SourceVersion)_$(Build.BuildNumber)_$(Agent.Name):work/ $(Build.ArtifactStagingDirectory)/../s/vm_result/
+
+  - ${{ if ne(parameters.publishFolder, '') }}:
+
+    - task: PublishBuildArtifacts@1
+      displayName: '📦 Publish artifacts'
+      inputs:
+        pathToPublish: '$(Build.ArtifactStagingDirectory)/../s/vm_result/${{ parameters.publishFolder }}'
+        artifactFolderName: '${{ parameters.artifactFolderName }}'
+
+  - ${{ if ne(parameters.publishTest, '') }}:
+  
+    - task: PublishTestResults@2
+      displayName: '🌎 Upload test results'
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '$(Build.ArtifactStagingDirectory)/../s/vm_result/${{ parameters.publishTest }}'
+        testRunTitle: 'Unit Tests'
+
+  - ${{ if ne(parameters.publishCodeCoverageFolderName, '') }}:
+  
+    - task: UseDotNet@2
+      displayName: '🖥 Setting up Code Coverage'
+      inputs:
+        version: '5.0.x'
+    - task: publishCodeCoverageFolderNameResults@1
+      displayName: '🌎 Upload code coverage results'
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '$(Build.ArtifactStagingDirectory)/../s/vm_result/${{ parameters.publishCodeCoverageFolderName }}/xml/cobertura.xml'
+        
+  - task: Bash@3
+    displayName: "🗑 Cleanup Anka VM"
+    condition: always()
+    inputs:
+      targetType: 'inline'
+      script: |
+        # Always delete the VM
+        anka delete --yes ado-fastlane+$(Build.Repository.Name)_$(Build.SourceBranchName)_$(Build.SourceVersion)_$(Build.BuildNumber)_$(Agent.Name)
