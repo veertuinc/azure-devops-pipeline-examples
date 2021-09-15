@@ -8,4 +8,4 @@ Check out our documentation on [using Azure DevOps Pipelines with Anka Build](ht
 
 A special thanks to goes to:
 
-- Philipp Pinkernelle for their fastlane example
+- [Philipp Pinkernelle](https://github.com/PinkidG) from [SAP](https://github.com/SAP) for their fastlane example
