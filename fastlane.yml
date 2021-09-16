@@ -69,7 +69,7 @@ steps:
         touch "/tmp/registry-pull-lock-${{ parameters.anka_vm_name }}"
         
         # Pull latest version (if no tag specified)
-        anka registry pull ${{ parameters.anka_vm_name }} ${{ parameters.anka_vm_tag_name }}
+        anka registry pull ${{ parameters.anka_vm_name }} -t ${{ parameters.anka_vm_tag_name }}
         
         # Clone template for a VM
         anka clone ${{ parameters.anka_vm_name }} ado-fastlane+$(Build.Repository.Name)_$(Build.SourceBranchName)_$(Build.SourceVersion)_$(Build.BuildNumber)_$(Agent.Name)
