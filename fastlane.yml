@@ -4,10 +4,6 @@ trigger:
 pool: 'Anka macOS'
 
 parameters:
-  - name: anka_vm_registry_name
-    displayName: "Anka Registry Name"
-    type: string
-    default: 'YOUR_REGISTRY_NAME'
   - name: anka_vm_registry_address
     displayName: "Anka Registry Endpoint"
     type: string
@@ -67,9 +63,6 @@ steps:
         set -x
         # This script will get the latest anka template, we need to make sure only one template is pulled at a time on a machine.
         
-        # Add a registry Registry for further pulling
-        anka registry add ${{ parameters.anka_vm_registry_name }} ${{ parameters.anka_vm_registry_address }}
-        
         # First we'll create a lock-file, because pulling multiple VMs at the same time might cause issues.
         # This is not really thread safe... but it's better then nothing
         while [[ -f "/tmp/registry-pull-lock-${{ parameters.anka_vm_name }}" ]]; do
@@ -81,7 +74,7 @@ steps:
         touch "/tmp/registry-pull-lock-${{ parameters.anka_vm_name }}"
         
         # Pull latest version (if no tag specified)
-        anka registry pull ${{ parameters.anka_vm_name }} -t ${{ parameters.anka_vm_tag_name }}
+        anka registry -a ${{ parameters.anka_vm_registry_address }} pull ${{ parameters.anka_vm_name }} -t ${{ parameters.anka_vm_tag_name }}
         
         # Clone template for a VM
         anka clone ${{ parameters.anka_vm_name }} ado-fastlane+$(Build.Repository.Name)_$(Build.SourceBranchName)_$(Build.SourceVersion)_$(Build.BuildNumber)_$(Agent.Name)
