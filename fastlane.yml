@@ -11,7 +11,7 @@ parameters:
   - name: anka_vm_registry_address
     displayName: "Anka Registry Endpoint"
     type: string
-    default: 'http://YOUR_REGISTRY_NAME:PORT'
+    default: 'http://YOUR_REGISTRY_ADDR:PORT'
   - name: anka_vm_name
     displayName: "Anka VM Template Name or UUID"
     type: string
@@ -64,7 +64,7 @@ steps:
     inputs:
       targetType: 'inline'
       script: |
-      set -x
+        set -x
         # This script will get the latest anka template, we need to make sure only one template is pulled at a time on a machine.
         
         # Add a registry Registry for further pulling
@@ -87,7 +87,7 @@ steps:
         anka clone ${{ parameters.anka_vm_name }} ado-fastlane+$(Build.Repository.Name)_$(Build.SourceBranchName)_$(Build.SourceVersion)_$(Build.BuildNumber)_$(Agent.Name)
 
   - task: Bash@3
-    displayName: '🔓 Unlock Anka VM'
+    displayName: '🔓 Remove registry pull-lock'
     condition: always()
     inputs:
       targetType: 'inline'
