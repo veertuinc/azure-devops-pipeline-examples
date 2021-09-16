@@ -4,6 +4,14 @@ trigger:
 pool: 'Anka macOS'
 
 parameters:
+  - name: anka_vm_registry_name
+    displayName: "Anka Registry Name"
+    type: string
+    default: 'YOUR_REGISTRY_NAME'
+  - name: anka_vm_registry_address
+    displayName: "Anka Registry Endpoint"
+    type: string
+    default: 'http://YOUR_REGISTRY_NAME:PORT'
   - name: anka_vm_name
     displayName: "Anka VM Template Name or UUID"
     type: string
@@ -56,7 +64,11 @@ steps:
     inputs:
       targetType: 'inline'
       script: |
+      set -x
         # This script will get the latest anka template, we need to make sure only one template is pulled at a time on a machine.
+        
+        # Add a registry Registry for further pulling
+        anka registry add ${{ parameters.anka_vm_registry_name }} ${{ parameters.anka_vm_registry_address }}
         
         # First we'll create a lock-file, because pulling multiple VMs at the same time might cause issues.
         # This is not really thread safe... but it's better then nothing
