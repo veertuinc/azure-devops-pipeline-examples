@@ -73,8 +73,10 @@ steps:
         # Create lock file
         touch "/tmp/registry-pull-lock-${{ parameters.anka_vm_name }}"
         
+        
         # Pull latest version (if no tag specified)
-        anka registry -a ${{ parameters.anka_vm_registry_address }} pull ${{ parameters.anka_vm_name }} -t ${{ parameters.anka_vm_tag_name }}
+        [[ "${{parameters.anka_vm_registry_address}}" != "http://YOUR_REGISTRY_ADDR:PORT" ]] && REGISTRY_OPTION="-a ${{ parameters.anka_vm_registry_address }}"
+        anka registry ${REGISTRY_OPTION:-} pull ${{ parameters.anka_vm_name }} -t ${{ parameters.anka_vm_tag_name }}
         
         # Clone template for a VM
         anka clone ${{ parameters.anka_vm_name }} ado-fastlane+$(Build.Repository.Name)_$(Build.SourceBranchName)_$(Build.SourceVersion)_$(Build.BuildNumber)_$(Agent.Name)
