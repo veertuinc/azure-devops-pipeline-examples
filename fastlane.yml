@@ -75,7 +75,13 @@ steps:
         
         
         # Pull latest version (if no tag specified)
-        [[ "${{parameters.anka_vm_registry_address}}" != "http://YOUR_REGISTRY_ADDR:PORT" ]] && REGISTRY_OPTION="-a ${{ parameters.anka_vm_registry_address }}"
+        if [[ "${{parameters.anka_vm_registry_address}}" != "http://YOUR_REGISTRY_ADDR:PORT" ]]; then
+          if [[ "$(arch)" == "arm64" ]]; then
+            REGISTRY_OPTION="--remote ${{ parameters.anka_vm_registry_address }}"
+          else
+            REGISTRY_OPTION="-a ${{ parameters.anka_vm_registry_address }}"
+          fi
+        fi
         anka registry ${REGISTRY_OPTION:-} pull ${{ parameters.anka_vm_name }} -t ${{ parameters.anka_vm_tag_name }}
         
         # Clone template for a VM
